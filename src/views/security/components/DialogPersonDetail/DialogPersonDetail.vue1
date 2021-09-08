@@ -1,0 +1,338 @@
+<template>
+  <div>
+    <el-dialog class="newDialog" title="详情" :visible="visible" :width="`${(1200 / width_w) * 100}%`" :before-close="handleClose">
+      <div class="detail-container flex">
+        <div class="left-layout" v-if="form.faceInfo">
+          <div class="cap-img" v-if="!hideOriginalFace">
+            <div class="img-title">
+              <span>原图像</span>
+              <span>抓拍图</span>
+            </div>
+            <div class="pic">
+              <div class="left">
+                <img src="" alt="" />
+              </div>
+              <div>
+                <img :src="form.faceInfo.faceUrl" alt="" />
+              </div>
+            </div>
+          </div>
+          <div class="cap-img" v-else>
+            <div class="img-title">
+              <span>抓拍图</span>
+            </div>
+            <div class="pic pic-center">
+              <div>
+                <img v-if="form.faceInfo" :src="form.faceInfo.faceUrl" alt="" />
+              </div>
+            </div>
+          </div>
+          <div class="similarityDegree" v-if="!hideOriginalFace">
+            相似度:{{ getSimilarityDisplay(ruleForm.similarity) }}
+          </div>
+          <img class="personImg" v-if="form.humanInfo.humanImg" :src="form.humanInfo.humanImg" alt="" />
+        </div>
+        <div class="center-layout">
+          <img v-if="form.faceInfo && !showVideo" :src="form.faceInfo.panoramaImg" alt="" />
+          <div v-if="showVideo" style="height:423px">
+            <Video data-name="single" v-if="videoUrl" :style="{ width: '100%', height: '100%' }" :height="height_w - 500" :url="videoUrl" ref="video" :name="1"></Video>
+          </div>
+        </div>
+        <div class="right-layout">
+          <div class="personDetail title-list" v-if="!hidePersonInfo">
+            <h2 class="title">人员详情：</h2>
+            <div class="commonRow">
+              <div class="label">姓名：</div>
+              <div class="value" :title="ruleForm.name" style="word-break: break-all">
+                {{ ruleForm.name }}
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">国籍：</div>
+              <div class="value" :title="ruleForm.country">
+                {{ ruleForm.country }}
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">电话：</div>
+              <div class="value">{{ ruleForm.phone }}</div>
+            </div>
+            <div class="commonRow">
+              <div class="label">证件类型：</div>
+              <div class="value" :title="ruleForm.cardType">
+                {{ ruleForm.cardType }}
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">证件号码：</div>
+              <div class="value" :title="ruleForm.cardNo">
+                {{ ruleForm.cardNo }}
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">出生日期：</div>
+              <div class="value">{{ ruleForm.birthday | date }}</div>
+            </div>
+            <div class="commonRow">
+              <div class="label">住址：</div>
+              <div class="value" :title="ruleForm.address">
+                {{ ruleForm.address }}
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">工作单位：</div>
+              <div class="value" :title="ruleForm.jobAddress">
+                {{ ruleForm.jobAddress }}
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">籍贯：</div>
+              <div class="value" :title="ruleForm.homeTown">
+                {{ ruleForm.homeTown }}
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">备注：</div>
+              <div class="value" :title="ruleForm.remark" style="word-break: break-all">
+                {{ ruleForm.remark }}
+              </div>
+            </div>
+          </div>
+          <div class="cameraDetail title-list">
+            <h2 class="title">摄像机详情：</h2>
+            <div class="commonRow">
+              <div class="label">抓拍摄像机：</div>
+              <div class="value">
+                <span v-if="form.cameraCutVo" :title="form.cameraCutVo.name">{{
+                  form.cameraCutVo.name
+                }}</span>
+                <span v-else>--</span>
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">抓拍地址：</div>
+              <div class="value" v-if="form.cameraCutVo" :title="form.cameraCutVo.addr">
+                <span v-if="form.cameraCutVo">{{ form.cameraCutVo.addr }}</span>
+                <span v-else>--</span>
+              </div>
+            </div>
+            <div class="commonRow">
+              <div class="label">抓拍时间：</div>
+              <div class="value">{{ getTimeByTimeStamp(form.time) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div slot="footer" class="dialog-footer">
+        <el-dropdown @command="handleCommand">
+          <el-button type="primary" size="mini">
+            添加<i class="el-icon-arrow-down el-icon--right"></i>
+          </el-button>
+          <el-dropdown-menu slot="dropdown">
+            <el-dropdown-item command="important">重点人员</el-dropdown-item>
+          </el-dropdown-menu>
+        </el-dropdown>
+        <el-button type="primary" size="mini" @click="
+            dialogFacialFeature.show = true;
+            dialogFacialFeature.form = form.faceInfo;
+          ">人脸特征信息</el-button>
+        <el-button type="primary" size="mini" @click="
+            dialogHumanCharacteristics.visible = true;
+            dialogHumanCharacteristics.form = form.humanInfo;
+          ">人体特征</el-button>
+        <el-button type="primary" size="mini" @click="seeVideo" v-show="!showVideo">查看视频</el-button>
+        <el-button type="primary" size="mini" @click="seeImg" v-show="showVideo">查看大图</el-button>
+        <el-button type="primary" size="mini" @click="handleClose">关闭</el-button>
+      </div>
+    </el-dialog>
+    <DialogFacialFeature :show="dialogFacialFeature.show" :form="dialogFacialFeature.form" @close="dialogFacialFeature.show = false"></DialogFacialFeature>
+    <DialogHumanCharacteristics :visible="dialogHumanCharacteristics.visible" :form="dialogHumanCharacteristics.form" @close="dialogHumanCharacteristics.visible = false"></DialogHumanCharacteristics>
+    <DialogAddImportant :visible="dialogAddImportant.visible" :form="dialogAddImportant.form" @close="dialogAddImportant.visible = false"></DialogAddImportant>
+  </div>
+</template>
+
+<script lang="ts">
+import {
+  getBase64,
+  getTimeByTimeStamp,
+  getSimilarityDisplay,
+} from "@/utils/index.js";
+import { Component, Prop, Vue, Mixins, Watch } from "vue-property-decorator";
+import DialogFacialFeature from "./DialogFacialFeature.vue";
+import DialogHumanCharacteristics from "./DialogHumanCharacteristics.vue";
+import DialogAddImportant from "./DialogAddImportant.vue";
+import { playBackTime } from "@/api/police";
+import Video from "./Video.vue";
+import config from "@/api/config";
+@Component({
+  components: {
+    DialogHumanCharacteristics,
+    DialogFacialFeature,
+    DialogAddImportant,
+    Video,
+  },
+})
+export default class extends Vue {
+  @Prop({ default: false }) visible: boolean;
+  @Prop({ default: false }) hideOriginalFace: boolean; //隐藏原图像
+  @Prop({ default: false }) hidePersonInfo: boolean; //隐藏人员详情
+  @Prop({ default: {} }) form: object;
+  height_w: number = window.innerHeight;
+  width_w: number = window.innerWidth;
+  ruleForm: object = {
+    similarity: 0,
+  };
+  dialogFacialFeature: any = {
+    show: false,
+    form: {},
+  };
+  dialogHumanCharacteristics: any = {
+    visible: false,
+    form: {},
+  };
+  dialogAddImportant: any = {
+    visible: false,
+    form: {},
+  };
+  videoUrl: any = {};
+  showVideo: boolean = false;
+  handleClose() {
+    this.showVideo = false;
+    this.$emit("close");
+  }
+  getSimilarityDisplay(val) {
+    return getSimilarityDisplay(val);
+  }
+
+  handleCommand(action) {
+    if (action == "important") {
+      this.dialogAddImportant.visible = true;
+      this.dialogAddImportant.form = this.form;
+    }
+  }
+  seeImg() {
+    this.$nextTick(() => {
+      // this.$refs.reflv["flv_destroy"]();
+      this.showVideo = false;
+    });
+  }
+  seeVideo() {
+    playBackTime({
+      id: this.form["cameraId"],
+      timestamp: this.form["time"],
+    }).then((res) => {
+      console.log(res.data.data);
+      if (res.data.data && res.data.data.length) {
+        this.showVideo = true;
+        this.videoUrl = res.data.data[0];
+        this.$nextTick(() => {
+          this.$refs.video["play"]();
+        });
+        return;
+      }
+      this.$message.error("暂无视频");
+    });
+  }
+  getTimeByTimeStamp(val) {
+    return getTimeByTimeStamp(val);
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+.dialog-footer {
+  text-align: center;
+}
+.detail-container {
+}
+.pic-center {
+  > div {
+    margin: 0 auto;
+    text-align: center;
+  }
+}
+.left-layout {
+  width: 200px;
+  .personImg {
+    width: 200px;
+    height: 274px;
+    object-fit: contain;
+  }
+
+  .cap-img {
+    width: 100%;
+    .img-title {
+      margin-bottom: 5px;
+      display: flex;
+      text-align: center;
+      font-size: 12px;
+      span {
+        flex: 1;
+      }
+    }
+    .pic {
+      display: flex;
+      height: 100%;
+      > div {
+        flex: 1;
+      }
+      .left {
+        flex: 1;
+        margin-right: 1px;
+      }
+      img {
+        width: 100px;
+        height: 100px;
+        object-fit: contain;
+      }
+    }
+  }
+  .similarityDegree {
+    margin-top: 1px;
+    margin-bottom: 5px;
+    text-align: center;
+  }
+}
+.center-layout {
+  width: 773px;
+  height: 423px;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+}
+.right-layout {
+  .title-list {
+    .title {
+      margin-left: 10px;
+      margin-bottom: 5px;
+    }
+  }
+  .cameraDetail {
+    margin-top: 15px;
+  }
+  .commonRow {
+    display: flex;
+    margin-bottom: 5px;
+    font-size: 13px;
+    color: #666;
+    > .label {
+      width: 100px;
+      text-align: right;
+      font-weight: 600;
+    }
+    > .value {
+      flex: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  }
+}
+::v-deep {
+  .el-dialog__body {
+    padding: 15px;
+  }
+}
+</style>

@@ -1,0 +1,844 @@
+<template>
+  <div>
+    <!-- <el-row>
+      <el-col :span="24">
+        <action-header
+          :filterStatus="false"
+          :btnStatus="1"
+          :moreStatus="false"
+          :initFormHeader="initWarningForm"
+          @fetchData="fetchData"
+          :warningFilterForm="warningFilterForm"
+          :createWarning.sync="createWarning"
+          :total="page.total"
+        ></action-header>
+      </el-col>
+    </el-row>-->
+    <el-table
+      height="65vh"
+      v-loading="showLoading"
+      :data="list_data"
+      stripe
+      border
+      highlight-current-row
+      @cell-mouse-enter="enterRowChange"
+      @cell-mouse-leave="leaveRowChange"
+      @selection-change="handleSelectionChange"
+    >
+      <el-table-column
+        v-if="globalUpdateStatus"
+        type="selection"
+        width="50"
+        disabled="true"
+      ></el-table-column>
+
+      <el-table-column
+        type="index"
+        align="center"
+        label="序号"
+        class="indexNum"
+        width="50"
+      >
+        <template slot-scope="scope">
+          <span>{{ scope.$index + 1 }}</span>
+          <div v-if="globalUpdateStatus" class="fun-btn">
+            <el-dropdown
+              trigger="click"
+              placement="bottom-start"
+              @command="commandClick"
+            >
+              <el-tooltip
+                class="item"
+                effect="dark"
+                content="点击操作"
+                placement="top"
+              >
+                <i v-show="scope.row.showMenu" class="iconfont icon-menu"></i>
+              </el-tooltip>
+              <el-dropdown-menu slot="dropdown">
+                <div
+                  v-if="!deleteForm.data.length"
+                  @click="editTarget(scope.row)"
+                >
+                  <el-dropdown-item command="update">修改</el-dropdown-item>
+                </div>
+                <!-- <div @click="deleteBtn(scope.row)">
+                  <el-dropdown-item command="dele">删除</el-dropdown-item>
+                </div>-->
+                <div @click="delecteTarget(scope.row)">
+                  <el-dropdown-item command="delete">{{
+                    deleteForm.data.length ? "批量删除" : "删除"
+                  }}</el-dropdown-item>
+                </div>
+              </el-dropdown-menu>
+            </el-dropdown>
+          </div>
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        prop="name"
+        align="center"
+        label="姓名"
+        :show-overflow-tooltip="true"
+      >
+        <template slot-scope="{ row }">
+          <div style="height:40px;line-height:40px;">{{ row.name }}</div>
+        </template>
+      </el-table-column>
+      <el-table-column
+        prop="phone"
+        align="center"
+        label="电话"
+        :show-overflow-tooltip="true"
+      ></el-table-column>
+      <el-table-column
+        prop="email"
+        align="center"
+        label="邮箱"
+        :show-overflow-tooltip="true"
+      ></el-table-column>
+      <el-table-column
+        prop="earlyGroupName"
+        align="center"
+        label="分组"
+        :show-overflow-tooltip="true"
+      ></el-table-column>
+
+      <el-table-column
+        align="center"
+        :show-overflow-tooltip="true"
+        prop="note"
+        label="备注"
+      >
+        <template slot-scope="scope">
+          <span
+            class="rowUpdate"
+            v-show="!scope.row.noteStatus"
+            @click="editNote(scope.row)"
+            >{{ scope.row.note || "--" }}</span
+          >
+          <el-input
+            size="mini"
+            :ref="scope.row.id"
+            @blur="noteBlur(scope.row)"
+            v-model="editForm.note"
+            v-show="scope.row.noteStatus"
+            :clearable="true"
+            placeholder="输入备注"
+          ></el-input>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-pagination
+      @current-change="pageChange"
+      style="margin-top:10px;"
+      background
+      layout="prev, pager, next,total"
+      :page-size="listQuery.limit"
+      :total="listQuery.total"
+      :current-page="listQuery.page"
+    ></el-pagination>
+    <!-- 添加预警联系人 -->
+    <el-dialog
+      title="添加"
+      :visible.sync="createWarning"
+      width="500px"
+      :before-close="createClose"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="dataForm"
+        :model="createForm"
+        :rules="rules"
+        label-position="right"
+        label-width="100px"
+        style="margin-right:40px;"
+      >
+        <el-form-item
+          label="姓名:"
+          prop="name"
+          :show-message="showMessage"
+          :error="errorMessage.name"
+        >
+          <el-input
+            v-model="createForm.name"
+            autocomplete="off"
+            placeholder="请输入预警联系人姓名"
+            :maxlength="10"
+            clearable
+            @input="constraintLength(createForm.name, '10')"
+          ></el-input>
+        </el-form-item>
+
+        <el-form-item
+          label="邮箱:"
+          prop="email"
+          :rules="[
+            { required: true, message: '请输入邮箱地址', trigger: 'blur' },
+            {
+              type: 'email',
+              message: '请输入正确的邮箱地址',
+              trigger: 'blur,change'
+            }
+          ]"
+          :show-message="showMessage"
+          :error="errorMessage.email"
+        >
+          <el-input
+            v-model="createForm.email"
+            autocomplete="off"
+            clearable
+            placeholder="请输入邮箱"
+          ></el-input>
+        </el-form-item>
+
+        <!-- <div style="display: flex;"> -->
+        <el-form-item
+          label="电话:"
+          prop="phone"
+          :show-message="showMessage"
+          :error="errorMessage.phone"
+        >
+          <el-input
+            class="phone-position"
+            v-model="createForm.phone"
+            autocomplete="off"
+            placeholder="请输入手机号码"
+            clearable
+            :maxlength="11"
+            @keyup.native="UpNumber"
+            @keydown.native="UpNumber"
+            @change="clearableBtn"
+            @input="hint"
+            @focus="hintFocus"
+            @blur="hintBlur"
+            @mouseover.native="hint(createForm.phone)"
+            @mouseout.native="hint(createForm.phone)"
+          ></el-input>
+          <span v-show="hintPhone" class="ei-input-hint"
+            >{{ phoneNum }}/11</span
+          >
+        </el-form-item>
+        <!-- <p class="ei-input-hint">{{phoneNum}}/11</p> -->
+        <!-- </div> -->
+
+        <el-form-item
+          label="分组:"
+          prop="earlyGroupId"
+          :show-message="showMessage"
+          :error="errorMessage.earlyGroupId"
+        >
+          <!-- <el-input v-model="createForm.earlyGroupId" autocomplete="off"></el-input> -->
+          <div
+            style="display: flex;flex-wrap: nowrap;justify-content: space-between;"
+          >
+            <el-select v-model="createForm.earlyGroupId" placeholder="请选择">
+              <el-option
+                v-for="tag in earlyGroup"
+                :key="tag.id"
+                :label="tag.groupName"
+                :value="tag.id"
+              ></el-option>
+            </el-select>
+            <el-button
+              style="margin-left:5px;"
+              @click="showUnitSetting = !showUnitSetting"
+              >添加分组</el-button
+            >
+          </div>
+
+          <div v-if="showUnitSetting">
+            <el-tag
+              style="margin-left:5px"
+              :key="index"
+              v-for="(tag, index) in earlyGroup"
+              closable
+              :disable-transitions="false"
+              @close="deleteTag(tag, index)"
+              >{{ tag.groupName }}</el-tag
+            >
+            <el-input
+              class="input-new-tag"
+              v-if="newTag"
+              v-model="newTagValue"
+              ref="saveTagInput"
+              size="small"
+              :maxlength="10"
+              placeholder="请输入添加分组名称"
+              clearable
+              @input="constraintLength(newTagValue, '10')"
+              @blur="handleInputConfirm"
+            ></el-input>
+            <el-button
+              v-else
+              class="button-new-tag"
+              size="small"
+              @click="showInput"
+              >添加分组</el-button
+            >
+          </div>
+        </el-form-item>
+        <el-form-item
+          label="备注:"
+          prop="note"
+          :show-message="showMessage"
+          :error="errorMessage.note"
+        >
+          <el-input
+            v-model="createForm.note"
+            :maxlength="200"
+            placeholder="输入备注信息"
+            clearable
+            type="textarea"
+            @input="constraintLength(createForm.note, '200')"
+          ></el-input>
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="createClose">取 消</el-button>
+        <el-button type="primary" @click="createwarning">确 定</el-button>
+      </div>
+    </el-dialog>
+
+    <!-- 修改预警联系人 -->
+    <el-dialog
+      title="修改"
+      :visible.sync="dialogEdit"
+      width="500px"
+      :before-close="editClose"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="updateForm"
+        :model="editForm"
+        label-position="right"
+        label-width="100px"
+        style="margin-right:40px;"
+      >
+        <el-form-item
+          label="姓名:"
+          prop="name"
+          :show-message="showMessage"
+          :error="errorMessage.name"
+        >
+          <el-input
+            v-model="editForm.name"
+            autocomplete="off"
+            placeholder="请输入预警联系人姓名"
+            :maxlength="10"
+            clearable
+            @input="constraintLength(editForm.name, '10')"
+          ></el-input>
+        </el-form-item>
+
+        <el-form-item
+          label="邮箱:"
+          prop="email"
+          :rules="[
+            {
+              type: 'email',
+              message: '请输入正确的邮箱地址',
+              trigger: 'blur,change'
+            }
+          ]"
+          :show-message="showMessage"
+          :error="errorMessage.email"
+        >
+          <el-input
+            v-model="editForm.email"
+            autocomplete="off"
+            placeholder="请输入邮箱"
+            clearable
+            @input="constraint(editForm.email, 'email')"
+          ></el-input>
+        </el-form-item>
+
+        <!-- <div style="display: flex;"> -->
+        <el-form-item
+          label="电话:"
+          prop="editPhone"
+          :show-message="showMessage"
+          :error="errorMessage.editPhone"
+        >
+          <el-input
+            class="phone-position"
+            v-model="editForm.phone"
+            autocomplete="off"
+            placeholder="请输入手机号码"
+            clearable
+            :maxlength="11"
+            @keyup.native="UpNumber"
+            @keydown.native="UpNumber"
+            @change="clearableBtn"
+            @input="hint"
+            @focus="hintFocus"
+            @blur="hintBlur"
+            @mouseover.native="hint(editForm.phone)"
+            @mouseout.native="hint(editForm.phone)"
+          ></el-input>
+          <span v-show="hintPhone" class="ei-input-hint"
+            >{{ phoneNum }}/11</span
+          >
+        </el-form-item>
+        <!-- <p class="ei-input-hint">{{phoneNum}}/11</p> -->
+        <!-- </div> -->
+
+        <el-form-item
+          label="分组:"
+          prop="earlyGroupId"
+          :show-message="showMessage"
+          :error="errorMessage.earlyGroupId"
+        >
+          <div
+            style="display: flex;flex-wrap: nowrap;justify-content: space-between;"
+          >
+            <el-select v-model="editForm.earlyGroupId" placeholder="请选择">
+              <el-option
+                v-for="tag in earlyGroup"
+                :key="tag.id"
+                :label="tag.groupName"
+                :value="tag.id"
+              ></el-option>
+            </el-select>
+            <el-button
+              style="margin-left:5px"
+              @click="showUnitSetting = !showUnitSetting"
+              >添加分组</el-button
+            >
+          </div>
+
+          <div v-if="showUnitSetting">
+            <el-tag
+              style="margin-left:5px"
+              :key="index"
+              v-for="(tag, index) in earlyGroup"
+              closable
+              :disable-transitions="false"
+              @close="deleteTag(tag, index)"
+              >{{ tag.groupName }}</el-tag
+            >
+            <el-input
+              class="input-new-tag"
+              v-if="newTag"
+              v-model="newTagValue"
+              ref="saveTagInput"
+              size="small"
+              :maxlength="10"
+              placeholder="请输入添加分组名称"
+              clearable
+              @input="constraintLength(newTagValue, '10')"
+              @blur="handleInputConfirm"
+            ></el-input>
+            <el-button
+              v-else
+              class="button-new-tag"
+              size="small"
+              @click="showInput"
+              >添加分组</el-button
+            >
+          </div>
+        </el-form-item>
+        <el-form-item
+          label="备注:"
+          prop="note"
+          :show-message="showMessage"
+          :error="errorMessage.note"
+        >
+          <el-input
+            v-model="editForm.note"
+            :maxlength="200"
+            placeholder="输入备注信息"
+            clearable
+            type="textarea"
+            @input="constraintLength(editForm.note, '200')"
+          ></el-input>
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="editClose">取 消</el-button>
+        <el-button type="primary" @click="updatewarning">确 定</el-button>
+      </div>
+    </el-dialog>
+  </div>
+</template>
+
+<script lang="ts">
+import { Component, Prop, Vue, Mixins, Emit } from "vue-property-decorator";
+import { Getter, Action, Mutation } from "vuex-class";
+import mixin from "@/config/minxins";
+import { MessageBox } from "element-ui";
+import {
+  getWarning, //获取预警联系人
+  addWarning, //添加预警联系人
+  editWarning, //修改预警联系人
+  deleteWarning, //删除预警联系人
+  getGroup, //获取预警联系人分组
+  addGroup, //添加预警联系人分组
+  deleteGroup //删除预警联系人分组
+} from "@/api/systemApi.ts";
+const ActionHeader = () => import("@/components/ActionHeader.vue");
+import _axios from "@/plugins/axios.js";
+
+@Component({
+  mixins: [mixin],
+  components: {
+    ActionHeader
+  }
+})
+export default class WarningLink extends Vue {
+  @Prop({ default: false }) createWarning: boolean;
+  @Prop({
+    default: () => {
+      return { tag: "no" };
+    }
+  })
+  warningFilterForm: object;
+  @Prop({
+    default: () => {
+      return {
+        //获取车辆列表url
+        url: "/admin/usr-early-contact",
+        method: "get",
+        params: {
+          tag: "no"
+        }
+      };
+    }
+  })
+  initWarningForm: object;
+  private list_data: Array<Object> = [];
+
+  deleteForm: Object = {
+    //单个或批量删除
+    url: "/admin/usr-early-contact/batch-delete/",
+    method: "delete",
+    data: [],
+    message: `此操作将永久删除选中的预警联系人,删除后此联系人将无法联系,请谨慎操作!`
+  };
+
+  showUnitSetting: boolean = false; // 查看已有分组设置状态
+  earlyGroup: Array<Object> = []; //获取分组
+  newTag: boolean = false; // 添加分组框状态
+  newTagValue: string = ""; // 添加分组的值
+
+  private createForm: Object = {
+    //添加表单字段
+    earlyGroupId: "", //分组id
+    email: "", //邮箱
+    name: "", //姓名
+    note: "", //备注
+    phone: "" //电话
+  };
+
+  private dialogEdit: Boolean = false; // 修改弹出表单
+  private editForm: Object = {
+    //修改表单字段
+    earlyGroupId: "", //分组id
+    email: "", //邮箱
+    name: "", //姓名
+    note: "", //备注
+    phone: "", //电话
+    id: "" //目标联系人id
+  };
+  updateArray: Array<string> = ["noteStatus"];
+  private noteRewrite: String = ""; //保存未改变的note
+
+  private rules: Object = {
+    // 表单验证
+    phone: [
+      { required: true, message: "请输入预警联系人电话", trigger: "blur" }
+    ],
+    editPhone: [
+      { required: false, message: "请输入预警联系人电话", trigger: "blur" }
+    ],
+    name: [
+      { required: true, message: "请输入预警联系人姓名", trigger: "blur" }
+    ],
+    email: [
+      { required: true, message: "请输入预警联系人邮箱", trigger: "blur" }
+    ],
+    earlyGroupId: [
+      { required: true, message: "请选择预警联系人分组", trigger: "blur" }
+    ]
+  };
+  private showMessage: Boolean = true; //是否显示表单错误信息
+  private errorMessage: Object = {
+    // 表单错误信息
+    phone: "",
+    name: "",
+    email: "",
+    earlyGroupId: ""
+  };
+
+  private listQuery: Object = {
+    // 车辆管理名单目标通行记录翻页
+    total: 0,
+    limit: 10,
+    page: 1
+  };
+
+  created() {
+    this.initForm["params"] = Object.assign(
+      this.initWarningForm["params"],
+      this.page,
+      this.warningFilterForm
+    ); // 合并参数
+    this.initForm["url"] = "/admin/usr-early-contact";
+    this.getGroupList();
+  }
+
+  fetchInfo() {
+    this["showLoading"] = true;
+    getWarning(this.listQuery).then((res: any) => {
+      if (res.data && res.data.data) {
+        this.listQuery["total"] = res.data.data.total;
+        this.list_data = res.data.data.records;
+        this.$emit("backTotal", this.listQuery["total"]);
+        if (res.data.data.records.length) {
+          res.data.data.records.forEach((ele: object) => {
+            this.updateArray.forEach((itemStatus: string) => {
+              this.$set(ele, itemStatus, false);
+            });
+            this.$set(ele, "showMenu", false);
+          });
+        } else {
+          if (this.listQuery["page"] > 1) {
+            this.listQuery["page"]--;
+            this.fetchInfo();
+          }
+        }
+      }
+      this["showLoading"] = false;
+    });
+  }
+
+  delecteTarget(row) {
+    if (!this.deleteForm["data"].length) {
+      this.deleteForm["data"].push(row.id);
+    }
+    MessageBox.confirm(`${this.deleteForm["message"]}, 是否继续?`, "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning"
+    })
+      .then(() => {
+        this.deleteRow(this.deleteForm);
+      })
+      .catch(() => {
+        this.deleteForm["data"] = [];
+        this["message"]("error", "已取消删除");
+      });
+  }
+
+  // 删除某行或多行数据
+  deleteRow(option: object) {
+    return _axios(option).then(res => {
+      if (res.data.code === 200) {
+        this.deleteForm["data"] = [];
+        this["message"]("success", "删除成功");
+        this.fetchInfo();
+      } else {
+        this.deleteForm["data"] = [];
+      }
+    });
+  }
+
+  createwarning() {
+    /**@description 添加预警联系人 */
+    this.$refs["dataForm"]["validate"](valid => {
+      if (valid) {
+        var form = {
+          ...this.createForm
+        };
+        addWarning(form).then(res => {
+          this.createClose();
+          this.fetchInfo();
+          this["message"]("success", "添加预警联系人成功!");
+        });
+      }
+    });
+  }
+
+  async getGroupList() {
+    /**@description 获取分组信息 */
+    const { data } = await getGroup();
+    this.earlyGroup = data.data;
+  }
+
+  showInput() {
+    /**@description 显示添加分组框*/
+    this.newTag = true;
+  }
+
+  handleInputConfirm() {
+    /**@description 添加分组 */
+    this.newTag = false;
+    if (this.newTagValue) {
+      addGroup({ groupName: this.newTagValue }).then(res => {
+        if (res.data.code === 200) {
+          this.getGroupList();
+          this.newTagValue = "";
+        }
+      });
+    }
+  }
+
+  deleteTag(tag, index) {
+    /**@description 删除分组 */
+    deleteGroup(tag.id).then(res => {
+      if (res.data.code === 200) {
+        this.getGroupList();
+      }
+    });
+  }
+
+  editNote(row) {
+    /**@description 点击备注*/
+    this.noteRewrite = row.note;
+    this.editForm["note"] = row.note;
+    this.editForm["id"] = row.id;
+    row.noteStatus = !row.noteStatus;
+    this.$nextTick(() => {
+      const input = this.$refs[row.id] as HTMLElement;
+      input.focus();
+    });
+  }
+
+  // 修改备注离开输入框
+  noteBlur(row) {
+    console.log(row);
+    row.noteStatus = false;
+    if (this.noteRewrite !== this.editForm["note"]) {
+      this.confirmUpdateNote(row);
+    }
+  }
+
+  confirmUpdateNote(item) {
+    /**@description 修改备注 */
+    const form = { note: this.editForm["note"], id: item.id };
+    editWarning(form).then(() => {
+      this["message"]("success", `修改预警人员${item["name"]}的备注信息成功!`);
+      this.fetchInfo();
+      // this["fetchData"](this.initWarningForm);
+    });
+  }
+
+  editTarget(item) {
+    /**@description 修改操作 */
+    for (const key in this.editForm) {
+      this.editForm[key] = item[key];
+    }
+    if (+item["phone"]) {
+      this.editForm["phone"] = +item["phone"];
+    } else if (item["phone"] === "") {
+      this.editForm["phone"] = null;
+    }
+    if (item["email"] === "") {
+      this.editForm["email"] = null;
+    }
+    this.editForm["phone"] = +item.phone;
+    this.editForm["earlyGroupId"] = item.earlyGroupId;
+    this.dialogEdit = true;
+
+    if (item.phone) {
+      this["phoneNum"] = item.phone.length;
+    }
+  }
+
+  constraint(value, type) {
+    if (type === "phone" && value.toString().length > 11) {
+      this.$message("电话不能超过11个字符");
+    }
+    if (value === "") {
+      this.editForm[type] = null;
+    }
+  }
+
+  updatewarning() {
+    /**@description 修改预警联系人 */
+    for (const key in this.errorMessage) {
+      this.errorMessage[key] = "";
+    }
+    const form = { ...this.editForm };
+    for (const key in form) {
+      if (form[key] === "") {
+        delete form[key];
+      }
+    }
+    this.$refs["updateForm"]["validate"](valid => {
+      if (valid) {
+        editWarning(form).then(() => {
+          this.editClose();
+          this["message"](
+            "success",
+            `修改预警联系人${this.editForm["name"]}成功!`
+          );
+          // this["fetchData"](this.initWarningForm);
+          this.fetchInfo();
+        });
+      }
+    });
+  }
+
+  createClose() {
+    this.$emit("editDialogCreate", false);
+    for (const key in this.errorMessage) {
+      this.errorMessage[key] = "";
+    }
+    this.$refs["dataForm"]["resetFields"]();
+  }
+
+  editClose() {
+    /** @description 关闭添加/修改dialog */
+
+    this.dialogEdit = false; //修改dialog
+    for (const key in this.errorMessage) {
+      this.errorMessage[key] = "";
+    }
+    this.$refs["updateForm"]["resetFields"]();
+  }
+
+  deleteBtn(item) {
+    /**@description 单个删除状态 */
+    this.$confirm("此操作将永久删除此预警联系人信息, 是否继续?", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning"
+    })
+      .then(() => {
+        deleteWarning(item.id).then(() => {
+          this["notify"]("success", "成功", "删除预警联系人成功");
+          // this["fetchData"](this.initWarningForm);
+          this.fetchInfo();
+        });
+      })
+      .catch(err => {
+        this.$message({
+          type: "info",
+          message: "已取消删除"
+        });
+      });
+  }
+
+  pageChange(page: number) {
+    // this.list_data = [];
+    this.listQuery["page"] = page;
+    this.fetchInfo();
+  }
+
+  isDisabled(row, index) {
+    /**@discription 禁用多选 */
+    if (row.auditResult == 3) {
+      return 0;
+    }
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+.input-new-tag {
+  width: 120px;
+}
+</style>
